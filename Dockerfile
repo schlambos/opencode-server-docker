@@ -58,7 +58,9 @@ ENV HOME=/config \
     OPENCODE_HOSTNAME=0.0.0.0
 
 # Make root's home /config so SSH sessions land in the same state dir
-RUN usermod -d /config root
+# (usermod refuses during build because root "is logged in"; edit passwd directly)
+RUN sed -i 's#^root:\(.*\):/root:#root:\1:/config:#' /etc/passwd \
+    && grep -q '^root:.*:/config:' /etc/passwd
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
