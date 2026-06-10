@@ -4,16 +4,78 @@ on:
   push:
     branches: [main]
   schedule:
-    # Weekly rebuild so the image picks up new OpenCode releases
-    - cron: '0 6 * * 1'
+    # Check hourly for new OpenCode releases. The build only runs when the
+    # upstream version differs from what is already published (see the
+    # "check" job), so a no-op cron costs ~1 API call instead of a full build.
+    - cron: '0 * * * *'
   workflow_dispatch:
+    inputs:
+      force:
+        description: 'Force rebuild even if version is unchanged'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
   packages: write
 
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/opencode-server
+
 jobs:
+  # Resolve the latest upstream OpenCode release and compare it against the
+  # version baked into the currently-published :latest image. Only proceed
+  # to build when they differ (or on push / forced dispatch).
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.decide.outputs.should_build }}
+      version: ${{ steps.latest.outputs.version }}
+    steps:
+      - name: Get latest OpenCode release
+        id: latest
+        run: |
+          version=$(curl -fsSL https://api.github.com/repos/anomalyco/opencode/releases/latest \
+            | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
+          if [ -z "$version" ]; then
+            echo "Failed to resolve latest OpenCode version" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Latest OpenCode release: $version"
+
+      - name: Get version in published image
+        id: published
+        run: |
+          # Read the org.opencontainers.image.version label from the manifest.
+          # If the image/label is missing (first run), treat as empty => build.
+          published=$(docker buildx imagetools inspect "${IMAGE}:latest" \
+            --format '{{ index .Image.Config.Labels "org.opencontainers.image.version" }}' 2>/dev/null || true)
+          echo "version=$published" >> "$GITHUB_OUTPUT"
+          echo "Published image version: ${published:-<none>}"
+
+      - name: Decide whether to build
+        id: decide
+        run: |
+          latest='${{ steps.latest.outputs.version }}'
+          published='${{ steps.published.outputs.version }}'
+          force='${{ github.event.inputs.force }}'
+          event='${{ github.event_name }}'
+
+          if [ "$event" = "push" ] || [ "$force" = "true" ]; then
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+            echo "Build reason: ${event}${force:+ (forced)}"
+          elif [ "$latest" != "$published" ]; then
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+            echo "Build reason: version changed ($published -> $latest)"
+          else
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+            echo "Up to date ($latest); skipping build."
+          fi
+
   build:
+    needs: check
+    if: needs.check.outputs.should_build == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -33,7 +95,12 @@ jobs:
           context: .
           platforms: linux/amd64
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/opencode-server:latest
+          build-args: |
+            OPENCODE_VERSION=${{ needs.check.outputs.version }}
+          tags: |
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:${{ needs.check.outputs.version }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.description=OpenCode server mode + OpenSSH for unRAID
+            org.opencontainers.image.version=${{ needs.check.outputs.version }}

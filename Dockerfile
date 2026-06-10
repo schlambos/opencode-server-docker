@@ -27,11 +27,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       nano \
     && rm -rf /var/lib/apt/lists/*
 
+# OpenCode version to install. Defaults to "latest"; CI pins this to the
+# newest release tag so the layer below cache-busts whenever OpenCode ships
+# a new version (build arg change => this RUN re-executes).
+ARG OPENCODE_VERSION=latest
+
 # Install OpenCode binary into the image (NOT the persistent volume).
 # The install script drops the binary under $HOME (e.g. ~/.opencode/bin);
 # move it to /usr/local/bin so it lives in the image and is always on PATH,
 # while /config (mounted volume) keeps only your data.
-RUN curl -fsSL https://opencode.ai/install | bash \
+RUN if [ "$OPENCODE_VERSION" = "latest" ]; then \
+        curl -fsSL https://opencode.ai/install | bash; \
+    else \
+        curl -fsSL https://opencode.ai/install | bash -s -- --version "${OPENCODE_VERSION#v}"; \
+    fi \
     && BIN="$(find /root -type f -name opencode | head -1)" \
     && test -n "$BIN" \
     && mv "$BIN" /usr/local/bin/opencode \
