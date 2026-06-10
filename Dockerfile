@@ -28,9 +28,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install OpenCode binary into the image (NOT the persistent volume).
-# OPENCODE_INSTALL_DIR keeps the binary at /usr/local/bin so container
-# updates replace the binary while /config keeps your data.
-RUN curl -fsSL https://opencode.ai/install | OPENCODE_INSTALL_DIR=/usr/local/bin bash \
+# The install script drops the binary under $HOME (e.g. ~/.opencode/bin);
+# move it to /usr/local/bin so it lives in the image and is always on PATH,
+# while /config (mounted volume) keeps only your data.
+RUN curl -fsSL https://opencode.ai/install | bash \
+    && BIN="$(find /root -type f -name opencode | head -1)" \
+    && test -n "$BIN" \
+    && mv "$BIN" /usr/local/bin/opencode \
+    && chmod +x /usr/local/bin/opencode \
+    && rm -rf /root/.opencode \
     && opencode --version
 
 # sshd: allow root login with password (password is set at runtime
