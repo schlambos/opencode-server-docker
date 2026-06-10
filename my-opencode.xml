@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>opencode</Name>
+  <Repository>ghcr.io/schlambos/opencode-server:latest</Repository>
+  <Registry>https://ghcr.io</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>bash</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/schlambos/opencode-server-docker</Support>
+  <Project>https://github.com/anomalyco/opencode</Project>
+  <Overview>OpenCode AI coding agent running in headless server mode, with OpenSSH access and all configuration/history/auth persisted to appdata. SSH in to run the OpenCode TUI or `opencode auth login`; connect clients to the server API on port 4096.</Overview>
+  <Category>Productivity: Tools:</Category>
+  <WebUI/>
+  <TemplateURL>https://raw.githubusercontent.com/schlambos/opencode-server-docker/main/my-opencode.xml</TemplateURL>
+  <Icon>https://opencode.ai/favicon.ico</Icon>
+  <ExtraParams/>
+  <PostArgs/>
+  <CPUset/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires/>
+  <Config Name="SSH Port" Target="22" Default="2222" Mode="tcp" Description="Inbound SSH access to the container (ssh root@SERVER -p 2222)" Type="Port" Display="always" Required="true" Mask="false">2222</Config>
+  <Config Name="OpenCode Server Port" Target="4096" Default="4096" Mode="tcp" Description="OpenCode headless server API port" Type="Port" Display="always" Required="true" Mask="false">4096</Config>
+  <Config Name="Appdata" Target="/config" Default="/mnt/user/appdata/opencode" Mode="rw" Description="Persistent storage for ALL OpenCode data: settings (.config/opencode), auth + sessions + history (.local/share/opencode), cache, SSH host keys, and a workspace folder" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/opencode</Config>
+  <Config Name="Root Password (SSH)" Target="ROOT_PASSWORD" Default="" Mode="" Description="Password for SSH root login. Required for SSH access." Type="Variable" Display="always" Required="true" Mask="true"/>
+  <Config Name="OpenCode API Password" Target="OPENCODE_SERVER_PASSWORD" Default="" Mode="" Description="Optional HTTP basic-auth password for the OpenCode server API (username: opencode). Leave empty on a trusted LAN." Type="Variable" Display="always" Required="false" Mask="true"/>
+  <Config Name="OpenCode Port (internal)" Target="OPENCODE_PORT" Default="4096" Mode="" Description="Internal port OpenCode listens on. Keep in sync with the port mapping above." Type="Variable" Display="advanced" Required="false" Mask="false">4096</Config>
+  <Config Name="Anthropic API Key" Target="ANTHROPIC_API_KEY" Default="" Mode="" Description="Optional. You can instead SSH in and run `opencode auth login` once — credentials persist in appdata." Type="Variable" Display="advanced" Required="false" Mask="true"/>
+</Container>

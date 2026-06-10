@@ -1,0 +1,18 @@
+services:
+  opencode:
+    build: .
+    image: opencode-server:latest
+    container_name: opencode
+    restart: unless-stopped
+    ports:
+      - '2222:22' # SSH into the container: ssh root@<host> -p 2222
+      - '4096:4096' # OpenCode server API
+    environment:
+      ROOT_PASSWORD: changeme # CHANGE THIS — SSH root password
+      OPENCODE_PORT: '4096'
+      OPENCODE_HOSTNAME: 0.0.0.0
+      # OPENCODE_SERVER_PASSWORD: changeme   # optional: HTTP basic auth on the API
+      # ANTHROPIC_API_KEY: sk-...            # optional: or run `opencode auth login` over SSH
+    volumes:
+      # unRAID: /mnt/user/appdata/opencode:/config
+      - ./appdata:/config
