@@ -239,16 +239,19 @@ probe_aioncore_reachability() {
     return 0
   fi
   local base="${AIONCORE_URL%/}/"
-  local code
-  # Use GET on /plugin/events with a short timeout — the SSE endpoint will
-  # return headers (proving connectivity + auth) without mutating registry
-  # state. We only care about the HTTP status code, not the stream body.
-  # A 200 (or even 401) proves the port is open and the server responds.
-  code="$(curl -s -o /dev/null -w '%{http_code}' -m 8 \
+  local code curl_exit
+  # GET /plugin/events is SSE — curl blocks until --max-time, then exits 28.
+  # Must not use bare command substitution under set -e (kills entrypoint).
+  # HTTP 200 + exit 28 means headers arrived and the stream opened (success).
+  set +e
+  code="$(curl -s -o /dev/null -w '%{http_code}' \
+    --connect-timeout 3 --max-time 3 \
     -X GET \
     -H "Authorization: Bearer ${AIONCORE_TOKEN}" \
     -H "Accept: text/event-stream" \
     "${base}plugin/events" 2>/dev/null)"
+  curl_exit=$?
+  set -e
   if [[ -z "${code}" ]]; then
     code="000"
   fi
@@ -258,7 +261,7 @@ probe_aioncore_reachability() {
     warn "AionCore plugin channel reachable but token rejected (HTTP 401 on ${base}plugin/events)."
     warn "Re-copy the token from Chisl Install Plugin into Unraid / chisl.env / opencode.jsonc."
   elif [[ "${code}" == "000" ]]; then
-    warn "Cannot reach AionCore plugin channel at ${base} (connection failed)."
+    warn "Cannot reach AionCore plugin channel at ${base} (connection failed, curl exit ${curl_exit})."
     warn "Check LAN routing and Mac firewall on port 64921."
   else
     log "AionCore plugin channel reachable (${base}plugin/events -> HTTP ${code})."
