@@ -113,10 +113,13 @@ install_chisl_plugin_loader() {
 
   mkdir -p "${plugdir}"
   cat > "${loader}" <<EOF
-// Installed by opencode-server entrypoint — re-exports bundled v1 plugin entry.
-export { default } from "${CHISL_PLUGIN_ENTRY}";
+// Installed by opencode-server entrypoint — single-function plugin wrapper.
+import { createPlugin } from "${CHISL_PLUGIN_OPT}/dist/capabilities.js";
+export default async function chislOpencodePlugin(input, options) {
+  return createPlugin(input, options);
+}
 EOF
-  echo "${want_ver}-v1" > "${stamp}"
+  echo "${want_ver}-fn" > "${stamp}"
   log "Installed Chisl plugin loader at ${loader} (OpenCode auto-discovers plugins/*.mjs)."
 }
 
