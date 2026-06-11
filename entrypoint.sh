@@ -240,36 +240,56 @@ probe_aioncore_reachability() {
   fi
   local base="${AIONCORE_URL%/}/"
   local code
-  # Port 64921 is the AionCore *plugin* server — not OpenCode. It has no
-  # /global/health (that path is OpenCode-only). Probe /plugin/hello instead.
+  # Use GET on /plugin/events with a short timeout — the SSE endpoint will
+  # return headers (proving connectivity + auth) without mutating registry
+  # state. We only care about the HTTP status code, not the stream body.
+  # A 200 (or even 401) proves the port is open and the server responds.
   code="$(curl -s -o /dev/null -w '%{http_code}' -m 8 \
-    -X POST \
+    -X GET \
     -H "Authorization: Bearer ${AIONCORE_TOKEN}" \
-    -H "Content-Type: application/json" \
-    -d '{"protocolVersion":1,"pluginVersion":"0.0.0","hooks":[]}' \
-    "${base}plugin/hello" 2>/dev/null)"
+    -H "Accept: text/event-stream" \
+    "${base}plugin/events" 2>/dev/null)"
   if [[ -z "${code}" ]]; then
     code="000"
   fi
   if [[ "${code}" == "200" ]]; then
-    log "AionCore plugin channel reachable (${base}plugin/hello -> HTTP ${code})."
+    log "AionCore plugin channel reachable (${base}plugin/events -> HTTP ${code})."
   elif [[ "${code}" == "401" ]]; then
-    warn "AionCore plugin channel reachable but token rejected (HTTP 401 on ${base}plugin/hello)."
+    warn "AionCore plugin channel reachable but token rejected (HTTP 401 on ${base}plugin/events)."
     warn "Re-copy the token from Chisl Install Plugin into Unraid / chisl.env / opencode.jsonc."
   elif [[ "${code}" == "000" ]]; then
-    warn "Cannot reach AionCore plugin channel at ${base}plugin/hello (connection failed)."
+    warn "Cannot reach AionCore plugin channel at ${base} (connection failed)."
     warn "Check LAN routing and Mac firewall on port 64921."
   else
-    warn "Unexpected response from ${base}plugin/hello (HTTP ${code})."
+    log "AionCore plugin channel reachable (${base}plugin/events -> HTTP ${code})."
   fi
+}
+
+# Returns 0 (true) if opencode.jsonc/json already contains a Chisl plugin reference.
+_jsonc_has_chisl_ref() {
+  local cfg
+  for cfg in /config/.config/opencode/opencode.jsonc /config/.config/opencode/opencode.json; do
+    [[ -f "${cfg}" ]] || continue
+    if grep -qE 'chisl-opencode-plugin|/opt/chisl-opencode-plugin' "${cfg}" 2>/dev/null; then
+      return 0
+    fi
+  done
+  return 1
 }
 
 prepare_chisl_plugin() {
   log_chisl_bundle_status || true
   ensure_config_package_json
   seed_chisl_plugin
-  install_chisl_plugin_loader
+  # Ensure jsonc tuple first; only install the plugins/*.mjs loader if the
+  # jsonc has no Chisl reference (avoid dual registration which causes
+  # duplicate plugin instances, hellos, and SSE streams).
   ensure_chisl_plugin_in_config
+  if ! _jsonc_has_chisl_ref; then
+    install_chisl_plugin_loader
+  else
+    log "Chisl plugin registered via opencode.jsonc tuple — skipping plugins/chisl.mjs loader (avoids dual registration)."
+  fi
   log_chisl_config_notes
   probe_aioncore_reachability
 }
