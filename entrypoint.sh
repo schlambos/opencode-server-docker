@@ -7,6 +7,70 @@ warn() { echo "[opencode-container] WARNING: $*" >&2; }
 
 CHISL_PLUGIN_OPT="/opt/chisl-opencode-plugin"
 CHISL_PLUGIN_FILE="file://${CHISL_PLUGIN_OPT}/dist/index.js"
+CHISL_ENV_FILE="/config/.config/opencode/chisl.env"
+
+# ---------------------------------------------------------------------------
+# Chisl dial-back credentials — Docker env, persistent file, or both.
+# Unraid often fails to inject NEW template variables into existing containers;
+# SSH login shells also do not inherit Docker -e vars. We sync to chisl.env and
+# source it for interactive shells via /etc/profile.d/chisl-env.sh.
+# ---------------------------------------------------------------------------
+
+load_chisl_connection_env() {
+  local from_file_url="" from_file_token=""
+  local from_docker_url="${AIONCORE_URL:-}"
+  local from_docker_token="${AIONCORE_TOKEN:-}"
+
+  if [[ -f "${CHISL_ENV_FILE}" ]]; then
+    # shellcheck disable=SC1090
+    set -a && source "${CHISL_ENV_FILE}" && set +a
+    from_file_url="${AIONCORE_URL:-}"
+    from_file_token="${AIONCORE_TOKEN:-}"
+    log "Loaded Chisl credentials from ${CHISL_ENV_FILE} (token len=${#from_file_token})."
+  fi
+
+  # Docker / Unraid template wins when both are set; file fills gaps.
+  if [[ -n "${from_docker_url}" ]]; then
+    export AIONCORE_URL="${from_docker_url}"
+  elif [[ -n "${from_file_url}" ]]; then
+    export AIONCORE_URL="${from_file_url}"
+  fi
+  if [[ -n "${from_docker_token}" ]]; then
+    export AIONCORE_TOKEN="${from_docker_token}"
+  elif [[ -n "${from_file_token}" ]]; then
+    export AIONCORE_TOKEN="${from_file_token}"
+  fi
+
+  if [[ -n "${AIONCORE_URL:-}" && -n "${AIONCORE_TOKEN:-}" ]]; then
+    mkdir -p "$(dirname "${CHISL_ENV_FILE}")"
+    umask 077
+    cat > "${CHISL_ENV_FILE}" <<EOF
+# Managed by opencode-server entrypoint — edit on the Unraid appdata share if
+# template env vars are not applied. Restart the container after changes.
+AIONCORE_URL=${AIONCORE_URL}
+AIONCORE_TOKEN=${AIONCORE_TOKEN}
+EOF
+    chmod 600 "${CHISL_ENV_FILE}"
+    if [[ -n "${from_docker_url}" || -n "${from_docker_token}" ]]; then
+      log "Synced Chisl credentials from container env -> ${CHISL_ENV_FILE}"
+    fi
+  elif [[ ! -f "${CHISL_ENV_FILE}" ]]; then
+    warn "Chisl credentials missing. Set Unraid template vars AIONCORE_URL / AIONCORE_TOKEN,"
+    warn "or create ${CHISL_ENV_FILE} on the appdata share (see README), then restart."
+  fi
+
+  mkdir -p /etc/profile.d
+  cat > /etc/profile.d/chisl-env.sh <<'EOF'
+# Source persistent Chisl dial-back credentials for SSH sessions.
+if [[ -f /config/.config/opencode/chisl.env ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  . /config/.config/opencode/chisl.env
+  set +a
+fi
+EOF
+  chmod 644 /etc/profile.d/chisl-env.sh
+}
 
 # ---------------------------------------------------------------------------
 # Chisl plugin — bundle check, cache seed, config rewrite, plugins/ loader
@@ -195,6 +259,8 @@ mkdir -p \
   /config/.cache/opencode \
   /config/ssh \
   /config/workspace
+
+load_chisl_connection_env
 
 # ---------------------------------------------------------------------------
 # 2. Root password for SSH (from ROOT_PASSWORD env var)

@@ -86,6 +86,13 @@ from the Chisl **Install Plugin** card. The plugin reads these env vars when
 the `opencode.jsonc` tuple omits `url` / `token`. Tuple options take
 precedence over env.
 
+**Unraid gotcha:** template variables added in a newer image are **not**
+applied to an existing container until you **Edit** the container (fields must
+appear), **Apply**, and **restart**. If values still do not reach OpenCode,
+create **`/mnt/user/appdata/opencode/.config/opencode/chisl.env`** on the host
+(see `config/chisl.env.example`), `chmod 600`, restart. The entrypoint loads
+that file and syncs it when Docker env vars work.
+
 After restart, the Chisl UI should show **6 hooks active** without manual
 `curl` — and stay connected via the plugin's SSE loop.
 
@@ -111,7 +118,10 @@ cat /opt/chisl-opencode-plugin/.package-version   # expect 0.2.0
 # Auto-loader installed?
 cat /config/.config/opencode/plugins/chisl.mjs
 
-# Env vars (token length only — do not paste token in tickets)
+# Env vars — SSH echo is WRONG for Docker -e vars; check PID 1 / chisl.env:
+tr '\0' '\n' < /proc/1/environ | grep -E '^AIONCORE_'
+cat /config/.config/opencode/chisl.env 2>/dev/null | sed 's/AIONCORE_TOKEN=.*/AIONCORE_TOKEN=***masked***/'
+source /etc/profile.d/chisl-env.sh 2>/dev/null || true
 echo "URL=$AIONCORE_URL"
 echo "TOKEN_LEN=${#AIONCORE_TOKEN}"
 
