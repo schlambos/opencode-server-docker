@@ -63,7 +63,7 @@ On every container start the entrypoint:
 3. Installs `/config/.config/opencode/plugins/chisl.mjs` so OpenCode
    auto-discovers the plugin even when `opencode.jsonc` is incomplete
 4. Runs `bun install` in `/config/.config/opencode` for `@opencode-ai/plugin`
-5. Probes `AIONCORE_URL/global/health` from inside the container (logs pass/fail)
+5. Probes `AIONCORE_URL/plugin/hello` from inside the container (logs pass/fail)
 
 Add the plugin to `/config/.config/opencode/opencode.jsonc` (see
 `config/opencode.chisl-snippet.jsonc` for a full example):
@@ -125,9 +125,13 @@ source /etc/profile.d/chisl-env.sh 2>/dev/null || true
 echo "URL=$AIONCORE_URL"
 echo "TOKEN_LEN=${#AIONCORE_TOKEN}"
 
-# Reach Chisl from the container?
-curl -sf -m 5 -H "Authorization: Bearer $AIONCORE_TOKEN" \
-  "${AIONCORE_URL%/}/global/health"
+# Reach Chisl plugin channel? (/global/health is OpenCode-only — wrong port)
+source /etc/profile.d/chisl-env.sh 2>/dev/null || true
+curl -sS -m 8 -X POST \
+  -H "Authorization: Bearer $AIONCORE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"protocolVersion":1,"pluginVersion":"0.2.0","hooks":["event"]}' \
+  "${AIONCORE_URL%/}/plugin/hello"
 
 # OpenCode plugin errors
 ls -lt /config/.local/share/opencode/log/ | head

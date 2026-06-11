@@ -228,14 +228,27 @@ probe_aioncore_reachability() {
   fi
   local base="${AIONCORE_URL%/}/"
   local code
-  code="$(curl -sf -o /dev/null -w '%{http_code}' -m 8 \
+  # Port 64921 is the AionCore *plugin* server — not OpenCode. It has no
+  # /global/health (that path is OpenCode-only). Probe /plugin/hello instead.
+  code="$(curl -s -o /dev/null -w '%{http_code}' -m 8 \
+    -X POST \
     -H "Authorization: Bearer ${AIONCORE_TOKEN}" \
-    "${base}global/health" 2>/dev/null || echo "000")"
+    -H "Content-Type: application/json" \
+    -d '{"protocolVersion":1,"pluginVersion":"0.0.0","hooks":[]}' \
+    "${base}plugin/hello" 2>/dev/null)"
+  if [[ -z "${code}" ]]; then
+    code="000"
+  fi
   if [[ "${code}" == "200" ]]; then
-    log "AionCore reachable from container (${base}global/health -> HTTP ${code})."
+    log "AionCore plugin channel reachable (${base}plugin/hello -> HTTP ${code})."
+  elif [[ "${code}" == "401" ]]; then
+    warn "AionCore plugin channel reachable but token rejected (HTTP 401 on ${base}plugin/hello)."
+    warn "Re-copy the token from Chisl Install Plugin into Unraid / chisl.env / opencode.jsonc."
+  elif [[ "${code}" == "000" ]]; then
+    warn "Cannot reach AionCore plugin channel at ${base}plugin/hello (connection failed)."
+    warn "Check LAN routing and Mac firewall on port 64921."
   else
-    warn "Cannot reach AionCore at ${base}global/health (HTTP ${code})."
-    warn "Check LAN routing, Mac firewall on port 64921, and that the token matches Chisl Install Plugin."
+    warn "Unexpected response from ${base}plugin/hello (HTTP ${code})."
   fi
 }
 
