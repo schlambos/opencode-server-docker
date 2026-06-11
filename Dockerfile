@@ -67,7 +67,7 @@ RUN set -eux \
     && bun run build \
     && bun install --production \
     && install -d /opt/chisl-opencode-plugin \
-    && cp -a package.json dist node_modules README.md /opt/chisl-opencode-plugin/ \
+    && cp -a package.json dist node_modules README.md opencode-entry.mjs /opt/chisl-opencode-plugin/ \
     && sed -n 's/.*"version": "\([^"]*\)".*/\1/p' package.json | head -1 \
          > /opt/chisl-opencode-plugin/.package-version \
     && rm -rf /tmp/chisl-opencode-plugin

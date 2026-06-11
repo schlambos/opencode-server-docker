@@ -58,7 +58,7 @@ On every container start the entrypoint:
 
 1. Seeds the bundled plugin into `/config/.cache/opencode/node_modules/@chisl/…`
 2. Rewrites any `"@chisl/chisl-opencode-plugin"` entry in `opencode.jsonc` to
-   `file:///opt/chisl-opencode-plugin/dist/index.js` (your `url` / `token`
+   `file:///opt/chisl-opencode-plugin/opencode-entry.mjs` (your `url` / `token`
    tuple is preserved)
 3. Installs `/config/.config/opencode/plugins/chisl.mjs` so OpenCode
    auto-discovers the plugin even when `opencode.jsonc` is incomplete
@@ -71,7 +71,7 @@ Add the plugin to `/config/.config/opencode/opencode.jsonc` (see
 ```jsonc
 "plugin": [
   [
-    "file:///opt/chisl-opencode-plugin/dist/index.js",
+    "file:///opt/chisl-opencode-plugin/opencode-entry.mjs",
     {
       "url": "http://YOUR_CHISL_HOST:64921/",
       "token": "TOKEN_FROM_CHISL_INSTALL_PLUGIN"
@@ -112,7 +112,7 @@ and the plugin keeps an SSE stream open. If you see `hook_count=0` or
 
 ```bash
 # Bundled plugin present?
-ls -la /opt/chisl-opencode-plugin/dist/index.js
+ls -la /opt/chisl-opencode-plugin/opencode-entry.mjs
 cat /opt/chisl-opencode-plugin/.package-version   # expect 0.2.0
 
 # Auto-loader installed?

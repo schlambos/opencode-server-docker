@@ -6,7 +6,8 @@ log() { echo "[opencode-container] $*"; }
 warn() { echo "[opencode-container] WARNING: $*" >&2; }
 
 CHISL_PLUGIN_OPT="/opt/chisl-opencode-plugin"
-CHISL_PLUGIN_FILE="file://${CHISL_PLUGIN_OPT}/dist/index.js"
+CHISL_PLUGIN_ENTRY="file://${CHISL_PLUGIN_OPT}/opencode-entry.mjs"
+CHISL_PLUGIN_FILE="${CHISL_PLUGIN_ENTRY}"
 CHISL_ENV_FILE="/config/.config/opencode/chisl.env"
 
 # ---------------------------------------------------------------------------
@@ -82,9 +83,14 @@ log_chisl_bundle_status() {
     warn "Rebuild the image (ghcr.io/schlambos/opencode-server:latest) — an old image has no plugin."
     return 1
   fi
+  if [[ ! -f "${CHISL_PLUGIN_OPT}/opencode-entry.mjs" ]]; then
+    warn "Thin plugin entry missing at ${CHISL_PLUGIN_OPT}/opencode-entry.mjs."
+    warn "Pull a newer image — loading dist/index.js directly fails (barrel exports)."
+    return 1
+  fi
   local ver="unknown"
   [[ -f "${CHISL_PLUGIN_OPT}/.package-version" ]] && ver="$(cat "${CHISL_PLUGIN_OPT}/.package-version")"
-  log "Bundled Chisl plugin OK (version ${ver}) at ${CHISL_PLUGIN_OPT}/dist/index.js"
+  log "Bundled Chisl plugin OK (version ${ver}) at ${CHISL_PLUGIN_ENTRY}"
   return 0
 }
 
@@ -99,18 +105,19 @@ install_chisl_plugin_loader() {
   local want_ver="unknown"
   [[ -f "${CHISL_PLUGIN_OPT}/.package-version" ]] && want_ver="$(cat "${CHISL_PLUGIN_OPT}/.package-version")"
 
-  if [[ -f "${loader}" && -f "${stamp}" && "$(cat "${stamp}")" == "${want_ver}" ]]; then
+  if [[ -f "${loader}" && -f "${stamp}" && "$(cat "${stamp}")" == "${want_ver}-entry" ]] \
+     && grep -q 'opencode-entry.mjs' "${loader}" 2>/dev/null; then
     log "Chisl plugin loader already installed (${loader})."
     return 0
   fi
 
   mkdir -p "${plugdir}"
   cat > "${loader}" <<EOF
-// Installed by opencode-server entrypoint — re-exports the bundled Chisl plugin.
-// Reads AIONCORE_URL / AIONCORE_TOKEN from the container env when the jsonc tuple omits them.
-export { default } from "${CHISL_PLUGIN_FILE}";
+// Installed by opencode-server entrypoint — thin default export only (OpenCode requirement).
+import plugin from "${CHISL_PLUGIN_ENTRY}";
+export default plugin;
 EOF
-  echo "${want_ver}" > "${stamp}"
+  echo "${want_ver}-entry" > "${stamp}"
   log "Installed Chisl plugin loader at ${loader} (OpenCode auto-discovers plugins/*.mjs)."
 }
 
@@ -159,8 +166,13 @@ seed_chisl_plugin() {
       if grep -q '"@chisl/chisl-opencode-plugin"' "${cfg}"; then
         sed -i 's|"@chisl/chisl-opencode-plugin"|"'"${CHISL_PLUGIN_FILE}"'"|g' "${cfg}"
         log "Rewrote @chisl/chisl-opencode-plugin -> ${CHISL_PLUGIN_FILE} in ${cfg}"
-      else
-        log "Chisl plugin already referenced in ${cfg} (no npm-name rewrite needed)."
+      fi
+      if grep -q 'file:///opt/chisl-opencode-plugin/dist/index.js' "${cfg}"; then
+        sed -i 's|file:///opt/chisl-opencode-plugin/dist/index.js|'"${CHISL_PLUGIN_FILE}"'|g' "${cfg}"
+        log "Rewrote dist/index.js -> ${CHISL_PLUGIN_FILE} in ${cfg}"
+      fi
+      if ! grep -q 'chisl-opencode-plugin' "${cfg}" 2>/dev/null; then
+        log "Chisl plugin reference updated in ${cfg}."
       fi
     fi
   done

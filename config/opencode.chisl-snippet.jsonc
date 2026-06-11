@@ -5,7 +5,7 @@
   "plugin": [
     // ...your other plugins...
     [
-      "file:///opt/chisl-opencode-plugin/dist/index.js",
+      "file:///opt/chisl-opencode-plugin/opencode-entry.mjs",
       {
         "url": "http://192.168.0.68:64921/",
         "token": "YOUR_TOKEN_FROM_CHISL_INSTALL_PLUGIN"
