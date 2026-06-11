@@ -113,11 +113,10 @@ install_chisl_plugin_loader() {
 
   mkdir -p "${plugdir}"
   cat > "${loader}" <<EOF
-// Installed by opencode-server entrypoint — thin default export only (OpenCode requirement).
-import plugin from "${CHISL_PLUGIN_ENTRY}";
-export default plugin;
+// Installed by opencode-server entrypoint — re-exports bundled v1 plugin entry.
+export { default } from "${CHISL_PLUGIN_ENTRY}";
 EOF
-  echo "${want_ver}-entry" > "${stamp}"
+  echo "${want_ver}-v1" > "${stamp}"
   log "Installed Chisl plugin loader at ${loader} (OpenCode auto-discovers plugins/*.mjs)."
 }
 
@@ -280,8 +279,18 @@ _jsonc_has_chisl_ref() {
   return 1
 }
 
+quarantine_broken_plugins() {
+  local plugdir="/config/.config/opencode/plugins"
+  local bad="${plugdir}/config-backup.ts"
+  if [[ -f "${bad}" ]]; then
+    mv "${bad}" "${bad}.disabled" 2>/dev/null \
+      && log "Quarantined broken plugin ${bad} (OpenCode cannot load .ts without compile)."
+  fi
+}
+
 prepare_chisl_plugin() {
   log_chisl_bundle_status || true
+  quarantine_broken_plugins
   ensure_config_package_json
   seed_chisl_plugin
   # Ensure jsonc tuple first; only install the plugins/*.mjs loader if the
