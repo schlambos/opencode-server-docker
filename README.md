@@ -60,6 +60,10 @@ On every container start the entrypoint:
 2. Rewrites any `"@chisl/chisl-opencode-plugin"` entry in `opencode.jsonc` to
    `file:///opt/chisl-opencode-plugin/dist/index.js` (your `url` / `token`
    tuple is preserved)
+3. Installs `/config/.config/opencode/plugins/chisl.mjs` so OpenCode
+   auto-discovers the plugin even when `opencode.jsonc` is incomplete
+4. Runs `bun install` in `/config/.config/opencode` for `@opencode-ai/plugin`
+5. Probes `AIONCORE_URL/global/health` from inside the container (logs pass/fail)
 
 Add the plugin to `/config/.config/opencode/opencode.jsonc` (see
 `config/opencode.chisl-snippet.jsonc` for a full example):
@@ -85,15 +89,64 @@ precedence over env.
 After restart, the Chisl UI should show **6 hooks active** without manual
 `curl` — and stay connected via the plugin's SSE loop.
 
+### Troubleshooting "Waiting for plugin"
+
+Chisl is connected only when AionCore logs show:
+
+```
+plugin hello ... plugin_version=0.2.0 hook_count=6
+```
+
+and the plugin keeps an SSE stream open. If you see `hook_count=0` or
+`plugin_version=0.1.0`, that is **not** the bundled plugin (often a manual
+`curl` test or a failed npm install).
+
+**Inside the container (SSH):**
+
+```bash
+# Bundled plugin present?
+ls -la /opt/chisl-opencode-plugin/dist/index.js
+cat /opt/chisl-opencode-plugin/.package-version   # expect 0.2.0
+
+# Auto-loader installed?
+cat /config/.config/opencode/plugins/chisl.mjs
+
+# Env vars (token length only — do not paste token in tickets)
+echo "URL=$AIONCORE_URL"
+echo "TOKEN_LEN=${#AIONCORE_TOKEN}"
+
+# Reach Chisl from the container?
+curl -sf -m 5 -H "Authorization: Bearer $AIONCORE_TOKEN" \
+  "${AIONCORE_URL%/}/global/health"
+
+# OpenCode plugin errors
+ls -lt /config/.local/share/opencode/log/ | head
+```
+
+**Common fixes:**
+
+1. **Pull the latest image** — Docker → Check for Updates → Apply. Startup
+   logs must include `Bundled Chisl plugin OK (version 0.2.0)`.
+2. **Token mismatch** — Copy token from Chisl **Install Plugin** again into
+   Unraid **Chisl AionCore Token** *and* any `opencode.jsonc` tuple (tuple
+   wins over env).
+3. **Stale tuple in jsonc** — If you rotated the token in Chisl but left the
+   old token in `opencode.jsonc`, update or remove the tuple so env vars apply.
+4. **Mac firewall** — Allow inbound TCP **64921** from `192.168.0.5`.
+5. **Do not** run manual `curl .../plugin/hello` for testing — it fakes
+   "connected" for 60 seconds with 0 hooks and hides the real problem.
+
 **Bun** is installed at `/usr/local/bun/bin/bun` (on `PATH`) for OpenCode's
 npm plugin installs and for debugging from SSH (`bun --version`).
 
-**Local image build with a working-tree copy** (optional — CI fetches from
-GitHub automatically):
+**Updating the vendored plugin** (required before bumping plugin version in the
+image — CI builds from `plugins/chisl-opencode-plugin/` in this repo, not from
+GitHub):
 
 ```bash
 ./scripts/vendor-chisl-plugin.sh   # copies from ~/chisl-full/AionUi by default
-docker compose build
+git add plugins/chisl-opencode-plugin
+docker compose build               # optional local verify
 ```
 
 ## First-time setup

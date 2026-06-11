@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Copy the Chisl OpenCode plugin into the Docker build context.
-# CI clones AionUi directly in the Dockerfile; this script is for local builds
-# when you want to pin a working-tree copy instead of fetching from GitHub.
+# Refresh the vendored plugin committed under plugins/chisl-opencode-plugin.
+# CI builds from that tree — run this script before bumping the plugin version.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

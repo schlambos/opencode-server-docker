@@ -1,2 +1,2 @@
-# Vendored at build time (Dockerfile sparse-clone or scripts/vendor-chisl-plugin.sh).
-chisl-opencode-plugin/
+# Only ignore install artifacts inside the vendored plugin tree.
+chisl-opencode-plugin/node_modules/
