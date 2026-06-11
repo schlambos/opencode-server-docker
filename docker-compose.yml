@@ -11,6 +11,8 @@ services:
       ROOT_PASSWORD: changeme # CHANGE THIS — SSH root password
       OPENCODE_PORT: '4096'
       OPENCODE_HOSTNAME: 0.0.0.0
+      AIONCORE_URL: 'http://192.168.0.68:64921/'
+      AIONCORE_TOKEN: '' # from Chisl Install Plugin card
       # OPENCODE_SERVER_PASSWORD: changeme   # optional: HTTP basic auth on the API
       # ANTHROPIC_API_KEY: sk-...            # optional: or run `opencode auth login` over SSH
     volumes:

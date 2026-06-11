@@ -34,7 +34,9 @@ Rebuilt weekly to pick up new OpenCode releases. No local building required — 
    ```
 
 2. **Docker** tab → **Add Container** → pick **opencode** from the Template dropdown (under "User templates").
-3. Set **Root Password (SSH)**, confirm the appdata path (`/mnt/user/appdata/opencode`), click **Apply**. unRAID pulls the image from GHCR and starts it.
+3. Set **Root Password (SSH)**, **Chisl AionCore URL** (`http://YOUR_CHISL_HOST:64921/`), **Chisl AionCore Token** (from Chisl Install Plugin), confirm the appdata path (`/mnt/user/appdata/opencode`), click **Apply**. unRAID pulls the image from GHCR and starts it.
+
+   Existing containers: **Edit** → add/update the Chisl variables → **Apply** → **Restart**.
 
 ## Run — docker compose
 
@@ -43,6 +45,56 @@ docker compose up -d
 ```
 
 Edit `docker-compose.yml` first: change `ROOT_PASSWORD`, adjust the volume path.
+
+## Chisl plugin (bundled)
+
+The image ships with `@chisl/chisl-opencode-plugin` pre-built at
+`/opt/chisl-opencode-plugin`. OpenCode normally installs npm plugins with Bun
+into `/config/.cache/opencode/node_modules/`, but the Chisl package is **not on
+the public npm registry**, so a plain `"@chisl/chisl-opencode-plugin"` entry in
+`opencode.jsonc` silently fails to load.
+
+On every container start the entrypoint:
+
+1. Seeds the bundled plugin into `/config/.cache/opencode/node_modules/@chisl/…`
+2. Rewrites any `"@chisl/chisl-opencode-plugin"` entry in `opencode.jsonc` to
+   `file:///opt/chisl-opencode-plugin/dist/index.js` (your `url` / `token`
+   tuple is preserved)
+
+Add the plugin to `/config/.config/opencode/opencode.jsonc` (see
+`config/opencode.chisl-snippet.jsonc` for a full example):
+
+```jsonc
+"plugin": [
+  [
+    "file:///opt/chisl-opencode-plugin/dist/index.js",
+    {
+      "url": "http://YOUR_CHISL_HOST:64921/",
+      "token": "TOKEN_FROM_CHISL_INSTALL_PLUGIN"
+    }
+  ]
+]
+```
+
+Set **`AIONCORE_URL`** and **`AIONCORE_TOKEN`** on the container (Unraid
+template fields **Chisl AionCore URL** / **Chisl AionCore Token**) — values
+from the Chisl **Install Plugin** card. The plugin reads these env vars when
+the `opencode.jsonc` tuple omits `url` / `token`. Tuple options take
+precedence over env.
+
+After restart, the Chisl UI should show **6 hooks active** without manual
+`curl` — and stay connected via the plugin's SSE loop.
+
+**Bun** is installed at `/usr/local/bun/bin/bun` (on `PATH`) for OpenCode's
+npm plugin installs and for debugging from SSH (`bun --version`).
+
+**Local image build with a working-tree copy** (optional — CI fetches from
+GitHub automatically):
+
+```bash
+./scripts/vendor-chisl-plugin.sh   # copies from ~/chisl-full/AionUi by default
+docker compose build
+```
 
 ## First-time setup
 

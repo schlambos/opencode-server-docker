@@ -4,6 +4,40 @@ set -euo pipefail
 
 log() { echo "[opencode-container] $*"; }
 
+CHISL_PLUGIN_OPT="/opt/chisl-opencode-plugin"
+CHISL_PLUGIN_FILE="file://${CHISL_PLUGIN_OPT}/dist/index.js"
+
+# Seed the bundled Chisl plugin into OpenCode's Bun cache and rewrite any
+# npm-style @chisl/chisl-opencode-plugin entry to the bundled file:// path
+# (the package is not on the public npm registry).
+seed_chisl_plugin() {
+  if [[ ! -f "${CHISL_PLUGIN_OPT}/dist/index.js" ]]; then
+    return 0
+  fi
+
+  local cache="/config/.cache/opencode/node_modules/@chisl/chisl-opencode-plugin"
+  local image_ver="${CHISL_PLUGIN_OPT}/.package-version"
+  local cache_ver="${cache}/.package-version"
+
+  if [[ ! -f "${cache}/dist/index.js" ]] \
+     || ! cmp -s "${image_ver}" "${cache_ver}" 2>/dev/null; then
+    log "Seeding @chisl/chisl-opencode-plugin into OpenCode plugin cache ..."
+    mkdir -p "$(dirname "${cache}")"
+    rm -rf "${cache}"
+    cp -a "${CHISL_PLUGIN_OPT}" "${cache}"
+    [[ -f "${image_ver}" ]] && cp "${image_ver}" "${cache_ver}"
+  fi
+
+  local cfg
+  for cfg in /config/.config/opencode/opencode.jsonc /config/.config/opencode/opencode.json; do
+    [[ -f "${cfg}" ]] || continue
+    if grep -q '"@chisl/chisl-opencode-plugin"' "${cfg}"; then
+      sed -i 's|"@chisl/chisl-opencode-plugin"|"'"${CHISL_PLUGIN_FILE}"'"|g' "${cfg}"
+      log "Rewrote @chisl/chisl-opencode-plugin -> ${CHISL_PLUGIN_FILE} in ${cfg}"
+    fi
+  done
+}
+
 # ---------------------------------------------------------------------------
 # 1. Persistent directory layout under /config (unRAID appdata mount)
 # ---------------------------------------------------------------------------
@@ -54,6 +88,22 @@ if [[ -z "${OPENCODE_SERVER_PASSWORD:-}" ]]; then
   log "NOTE: OPENCODE_SERVER_PASSWORD not set — the OpenCode API is"
   log "      unauthenticated. Fine on a trusted LAN; set it otherwise."
 fi
+
+if command -v bun >/dev/null 2>&1; then
+  log "Bun $(bun --version) available at $(command -v bun)."
+else
+  log "WARNING: bun not found on PATH — OpenCode npm plugin installs will fail."
+fi
+
+if [[ -n "${AIONCORE_URL:-}" && -n "${AIONCORE_TOKEN:-}" ]]; then
+  log "Chisl dial-back configured via AIONCORE_URL / AIONCORE_TOKEN env vars."
+elif [[ -n "${AIONCORE_URL:-}" || -n "${AIONCORE_TOKEN:-}" ]]; then
+  log "WARNING: Set both AIONCORE_URL and AIONCORE_TOKEN (Unraid template or opencode.jsonc)."
+else
+  log "NOTE: AIONCORE_URL / AIONCORE_TOKEN unset — set Unraid template vars or opencode.jsonc plugin tuple."
+fi
+
+seed_chisl_plugin
 
 cd /config/workspace
 log "Starting OpenCode server on ${HOSTNAME_BIND}:${PORT} (cwd: /config/workspace)"

@@ -1,0 +1,15 @@
+// Drop this into /config/.config/opencode/opencode.jsonc under "plugin".
+// The image bundles the plugin at /opt/chisl-opencode-plugin — use file://
+// because @chisl/chisl-opencode-plugin is not published to the public npm registry.
+{
+  "plugin": [
+    // ...your other plugins...
+    [
+      "file:///opt/chisl-opencode-plugin/dist/index.js",
+      {
+        "url": "http://192.168.0.68:64921/",
+        "token": "YOUR_TOKEN_FROM_CHISL_INSTALL_PLUGIN"
+      }
+    ]
+  ]
+}

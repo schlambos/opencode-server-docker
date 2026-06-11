@@ -48,6 +48,40 @@ RUN if [ "$OPENCODE_VERSION" = "latest" ]; then \
     && rm -rf /root/.opencode \
     && opencode --version
 
+# Bun — https://bun.sh/install (OpenCode npm plugins + Chisl plugin build).
+# BUN_INSTALL must not use $HOME: runtime HOME=/config, not /root.
+ENV BUN_INSTALL=/usr/local/bun
+ENV PATH="/usr/local/bun/bin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+RUN curl -fsSL https://bun.sh/install | bash \
+    && bun --version \
+    && bunx --version
+
+# Chisl OpenCode control-plane plugin (@chisl/chisl-opencode-plugin).
+# Not on the public npm registry today, so we bundle it in the image.
+# Override CHISL_AIONUI_REPO / CHISL_PLUGIN_REF to pin a fork or tag.
+ARG CHISL_AIONUI_REPO=https://github.com/iOfficeAI/AionUi.git
+ARG CHISL_PLUGIN_REF=main
+COPY plugins/ /tmp/plugins/
+RUN set -eux \
+    && if [ -f /tmp/plugins/chisl-opencode-plugin/package.json ]; then \
+         cp -a /tmp/plugins/chisl-opencode-plugin /tmp/chisl-opencode-plugin; \
+       else \
+         git clone --depth 1 --branch "${CHISL_PLUGIN_REF}" \
+           --filter=blob:none --sparse "${CHISL_AIONUI_REPO}" /tmp/aionui \
+         && cd /tmp/aionui \
+         && git sparse-checkout set packages/opencode-plugin \
+         && cp -a packages/opencode-plugin /tmp/chisl-opencode-plugin; \
+       fi \
+    && cd /tmp/chisl-opencode-plugin \
+    && bun install \
+    && bun run build \
+    && bun install --production \
+    && install -d /opt/chisl-opencode-plugin \
+    && cp -a package.json dist node_modules README.md /opt/chisl-opencode-plugin/ \
+    && sed -n 's/.*"version": "\([^"]*\)".*/\1/p' package.json | head -1 \
+         > /opt/chisl-opencode-plugin/.package-version \
+    && rm -rf /tmp/chisl-opencode-plugin /tmp/aionui
+
 # sshd: allow root login with password (password is set at runtime
 # from the ROOT_PASSWORD env var by the entrypoint).
 RUN mkdir -p /run/sshd \

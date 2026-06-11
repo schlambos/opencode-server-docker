@@ -9,7 +9,7 @@
   <Privileged>false</Privileged>
   <Support>https://github.com/schlambos/opencode-server-docker</Support>
   <Project>https://github.com/anomalyco/opencode</Project>
-  <Overview>OpenCode AI coding agent running in headless server mode, with OpenSSH access and all configuration/history/auth persisted to appdata. SSH in to run the OpenCode TUI or `opencode auth login`; connect clients to the server API on port 4096.</Overview>
+  <Overview>OpenCode AI coding agent in headless server mode with OpenSSH and persistent appdata. Bundles Bun, the Chisl control-plane plugin, and AIONCORE_URL / AIONCORE_TOKEN template vars for dial-back to your local Chisl/AionCore instance (port 64921). SSH in for the TUI or opencode auth login; API on port 4096.</Overview>
   <Category>Productivity: Tools:</Category>
   <WebUI/>
   <TemplateURL>https://raw.githubusercontent.com/schlambos/opencode-server-docker/main/my-opencode.xml</TemplateURL>
@@ -25,6 +25,9 @@
   <Config Name="Appdata" Target="/config" Default="/mnt/user/appdata/opencode" Mode="rw" Description="Persistent storage for ALL OpenCode data: settings (.config/opencode), auth + sessions + history (.local/share/opencode), cache, SSH host keys, and a workspace folder" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/opencode</Config>
   <Config Name="Root Password (SSH)" Target="ROOT_PASSWORD" Default="" Mode="" Description="Password for SSH root login. Required for SSH access." Type="Variable" Display="always" Required="true" Mask="true"/>
   <Config Name="OpenCode API Password" Target="OPENCODE_SERVER_PASSWORD" Default="" Mode="" Description="Optional HTTP basic-auth password for the OpenCode server API (username: opencode). Leave empty on a trusted LAN." Type="Variable" Display="always" Required="false" Mask="true"/>
+  <Config Name="Chisl AionCore URL" Target="AIONCORE_URL" Default="http://192.168.0.68:64921/" Mode="" Description="Chisl plugin dial-back URL (from Install Plugin in AionUi). No /plugin suffix. Example: http://192.168.0.68:64921/" Type="Variable" Display="always" Required="false" Mask="false">http://192.168.0.68:64921/</Config>
+  <Config Name="Chisl AionCore Token" Target="AIONCORE_TOKEN" Default="" Mode="" Description="Chisl plugin bearer token (from Install Plugin in AionUi). Required for plugin connection." Type="Variable" Display="always" Required="false" Mask="true"/>
+  <Config Name="Chisl Shell Debug" Target="CHISL_SHELL_DEBUG" Default="" Mode="" Description="Optional. Set to 1 to enable verbose Chisl run_shell_streaming debug logs in OpenCode." Type="Variable" Display="advanced" Required="false" Mask="false"/>
   <Config Name="OpenCode Port (internal)" Target="OPENCODE_PORT" Default="4096" Mode="" Description="Internal port OpenCode listens on. Keep in sync with the port mapping above." Type="Variable" Display="advanced" Required="false" Mask="false">4096</Config>
   <Config Name="Anthropic API Key" Target="ANTHROPIC_API_KEY" Default="" Mode="" Description="Optional. You can instead SSH in and run `opencode auth login` once — credentials persist in appdata." Type="Variable" Display="advanced" Required="false" Mask="true"/>
 </Container>
